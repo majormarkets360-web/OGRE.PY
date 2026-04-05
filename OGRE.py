@@ -208,4 +208,49 @@ tab1, tab2, tab3, tab4 = st.tabs(["🔥 Best Arbitrage Routes", "📊 Pool Detai
 with tab1:
     st.subheader(f"Best Routes — {amount} {from_token} → max {target_token}")
     if not df.empty:
-        st.dataframe(df, use_container_width=True, 
+        st.dataframe(df, use_container_width=True, height=520)
+        st.success(f"✅ Scan completed at {st.session_state['scan_time'].strftime('%H:%M:%S UTC')}")
+        st.download_button("📥 Download CSV", df.to_csv(index=False), f"arbitrage_scan_{from_token}.csv", type="secondary")
+    else:
+        st.warning("No supported pools found on selected networks. Try different token/chain.")
+
+with tab2:
+    st.subheader("Supported DEX Pool Breakdown")
+    if not df.empty:
+        for _, row in df.iterrows():
+            with st.expander(f"{row['Chain']} — {row['DEX']} — TVL {row['Pool TVL']}"):
+                st.metric("Expected Output", row["Expected Output"])
+                st.metric("Slippage", row["Slippage"])
+                st.metric("Liquidity Depth", row["Depth"])
+
+with tab3:
+    st.subheader("Value Extraction by Chain")
+    if not df.empty:
+        fig = px.bar(df, x="Chain", y="Expected Output", color="Slippage",
+                     hover_data=["DEX", "Pool TVL"],
+                     title="Maximum Value Extraction (higher = better)")
+        st.plotly_chart(fig, use_container_width=True)
+
+with tab4:
+    st.subheader("🤖 AI Arbitrage Expert")
+    if openai_key and not df.empty:
+        import openai
+        openai.api_key = openai_key
+        prompt = f"""You are a professional DeFi arbitrage scanner. Input: {amount} {from_token} → {target_token}
+Data:\n{df.to_string()}\n
+Give the SINGLE best route recommendation with reasoning (liquidity, slippage, fees, route). Use clear bullet points."""
+        with st.spinner("AI analyzing routes..."):
+            try:
+                resp = openai.ChatCompletion.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7
+                )
+                st.markdown(resp.choices[0].message.content)
+            except Exception as e:
+                st.error(f"AI error: {e}")
+    else:
+        st.info("Enter OpenAI key in sidebar for AI-powered route explanation.")
+
+st.caption("Real-time data from DexScreener + 1inch • Only requested tokens & DEXes • Built for Streamlit Cloud") 
+
